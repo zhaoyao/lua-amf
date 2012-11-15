@@ -2,5 +2,6 @@ tags
 *.o
 *.so
 *.un~
+*.swp
 .DS_store
 *.data
