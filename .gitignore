@@ -1,0 +1,6 @@
+tags
+*.o
+*.so
+*.un~
+.DS_store
+*.data
