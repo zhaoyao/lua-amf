@@ -15,19 +15,19 @@
 static inline void
 save_ref(lua_State *L, int idx, int ridx)
 {
-	int ref;
+    int ref;
 
-	/* retrieve current ref count */
+    /* retrieve current ref count */
     lua_rawgeti(L, ridx, 1);
-	ref = lua_tointeger(L, -1);
+    ref = lua_tointeger(L, -1);
     lua_pop(L, 1);
 
-	/* save object to the ref table */
+    /* save object to the ref table */
     lua_pushvalue(L, idx);
     lua_pushinteger(L, ref);
     lua_rawset(L, ridx);
 
-	/* increase the ref count */
+    /* increase the ref count */
     lua_pushinteger(L, ref + 1);
     lua_rawseti(L, ridx, 1);
 }
@@ -531,7 +531,7 @@ amf3_encode(lua_State *L, amf_buf *buf, int idx, int sidx, int oidx, int tidx)
     case LUA_TNIL: {
         amf_buf_append_char(buf, AMF3_NULL);
         break;
-	}
+    }
 
     case LUA_TBOOLEAN: {
         if (lua_toboolean(L, idx)) {
@@ -540,7 +540,7 @@ amf3_encode(lua_State *L, amf_buf *buf, int idx, int sidx, int oidx, int tidx)
             amf_buf_append_char(buf, AMF3_FALSE);
         }
         break;
-	}
+    }
 
     case LUA_TNUMBER: {
         lua_Number n = lua_tonumber(L, idx);
@@ -553,14 +553,14 @@ amf3_encode(lua_State *L, amf_buf *buf, int idx, int sidx, int oidx, int tidx)
             amf_buf_append_u29(buf, (int)n);
         }
         break;
-	}
+    }
 
     case LUA_TSTRING: {
         str = lua_tolstring(L, idx, &str_len);
         amf_buf_append_char(buf, AMF3_STRING);
         amf3_encode_string(L, buf, idx, sidx);
         break;
-	}
+    }
 
     case LUA_TTABLE:
         array_len = strict_array_length(L, idx);
@@ -841,11 +841,11 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
                             lua_rawset(L, traits_idx + 1);
                         }
 
-						if (amf_type != NULL) {
-							lua_pushstring(L, "__amf_type");
-							lua_pushstring(L, amf_type);
-							lua_rawset(L, traits_idx + 1);
-						}
+                        if (amf_type != NULL) {
+                            lua_pushstring(L, "__amf_type");
+                            lua_pushstring(L, amf_type);
+                            lua_rawset(L, traits_idx + 1);
+                        }
                     }
 
                     lua_remove(L, traits_idx);
