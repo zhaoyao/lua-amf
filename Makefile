@@ -1,11 +1,11 @@
-LUAJIT = /usr/local/openresty/luajit
-#PREFIX=/usr/local
+#LUAJIT = /usr/local/openresty/luajit
+PREFIX=/usr/local
 #LIBDIR ?= ${LUAJIT}/lib
 #LUAINC ?= ${LUAJIT}/include
-LIBDIR ?= ${LUAJIT}/lib
-LUAINC ?= ${LUAJIT}/include
+LIBDIR ?= ${PREFIX}/lib
+LUAINC ?= ${PREFIX}/include
 LUALIB ?= lua-5.1
-LUALIB ?= luajit
+#LUALIB ?= luajit
 #LIBDIR = /usr/local/openresty/lualib
 
 LIB = amf_codec.so

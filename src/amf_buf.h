@@ -15,7 +15,7 @@ typedef struct amf_buf {
     void *(*alloc)(void *ud, void *ptr, size_t osize, size_t nsize);
 } amf_buf;
 
-amf_buf *amf_buf_init(amf_buf *buf, void *(*alloc)(void *ud, void *ptr, size_t osize, size_t nsize));
+amf_buf *amf_buf_init(amf_buf *buf);
 void amf_buf_free(amf_buf *buf);
 
 void amf_buf_append(amf_buf *buf, const char *b, size_t len);

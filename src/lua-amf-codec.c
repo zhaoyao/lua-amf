@@ -32,7 +32,8 @@ lua_amf_encode(lua_State *L)
         ver = luaL_checkint(L, 1);
         check_amf_ver(ver, 1);
         luaL_checkany(L, 2);
-        buf = amf_buf_init(NULL, lua_getallocf(L, NULL));
+
+        buf = amf_buf_init(NULL);
 
     } else {
         buf = luaL_checkudata(L, 1, "amf_buffer");
@@ -159,7 +160,7 @@ int
 lua_amf_encode_msg(lua_State *L)
 {
     luaL_checktype(L, 1, LUA_TTABLE);
-    amf_buf *buf = amf_buf_init(NULL, lua_getallocf(L, NULL));
+    amf_buf *buf = amf_buf_init(NULL);
 
     amf_encode_msg(L, buf);
 
@@ -174,12 +175,23 @@ lua_amf_new_buffer(lua_State *L)
     amf_buf *b = lua_newuserdata(L, sizeof(struct amf_buf));
     if (b == NULL) return 0;
 
-    amf_buf_init(b, lua_getallocf(L, NULL));
+    amf_buf_init(b);
 
     luaL_getmetatable(L, "amf_buffer");
     lua_setmetatable(L, -2);
 
     return 1;
+}
+
+static int
+lua_amf_buffer_free(lua_State *L)
+{
+    amf_buf *b = lua_newuserdata(L, sizeof(struct amf_buf));
+    if (b != NULL) {
+        amf_buf_free(b);
+    }
+
+    return 0;
 }
 
 static int
@@ -258,12 +270,13 @@ const struct luaL_Reg amf_lib[] = {
 };
 
 const struct luaL_Reg amf_buf_lib[] = {
-    { "write_uchar",  lua_amf_buffer_write_uchar},
-    { "write_ushort", lua_amf_buffer_write_ushort},
-    { "write_int32", lua_amf_buffer_write_int32},
-    { "write_str",   lua_amf_buffer_write_str},
-    { "raw_string",  lua_amf_buffer_raw_string},
-    { "__tostring",  lua_amf_buffer_tostring},
+    { "write_uchar",  lua_amf_buffer_write_uchar },
+    { "write_ushort", lua_amf_buffer_write_ushort },
+    { "write_int32",  lua_amf_buffer_write_int32 },
+    { "write_str",    lua_amf_buffer_write_str },
+    { "raw_string",   lua_amf_buffer_raw_string },
+    { "__tostring",   lua_amf_buffer_tostring },
+    { "__gc",         lua_amf_buffer_free },
     { NULL, NULL}
 };
 

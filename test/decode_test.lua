@@ -1,6 +1,6 @@
 require 'test.fixture'
 
-local amf = require 'amf'
+local amf = require 'amf_codec'
 local object_fixture = fixture.object
 local request_fixture = fixture.request
 

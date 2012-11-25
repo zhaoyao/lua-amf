@@ -459,8 +459,70 @@ amf3_encode_string(lua_State *L, amf_buf *buf, int idx, int sidx)
 
 }
 
+/**
+ * encode the traits info for a lua table.
+ * first iterate over the current traits ref table(ridx) to see if we should encode the traits info as reference.
+ * if not, encode the whole traits info
+ */
+static int
+amf3_encode_traits(lua_State *L, amf_buf *buf, int traits_table_idx, int sidx, int tidx)
+{
+    int ncached = lua_objlen(L, tidx);
+
+    int ref = 1;
+    int traits_members = lua_objlen(L, traits_table_idx);
+
+    for (; ref <= ncached; ref++) {
+
+        lua_rawgeti(L, tidx, ref);
+
+        int match = 1;
+        int members = lua_objlen(L, -1);
+
+        if (members != traits_members) {
+            lua_pop(L, 1);
+            continue;
+        }
+
+        for (int i = 1; i <= members; i++) {
+            lua_rawgeti(L, traits_table_idx, i);
+            lua_rawgeti(L, -2, i);
+
+            if (!lua_rawequal(L, -1, -2)) {
+                match = 0;
+                lua_pop(L, 2);
+                break;
+            }
+
+            lua_pop(L, 2);
+        }
+
+        lua_pop(L, 1); /* drop the cached traits table */
+
+        if (match) {
+            amf_buf_append_u29(buf, ((ref-1) << 2 | 1));
+            return ref;
+        }
+    }
+
+    /* remember the traits */
+    lua_pushvalue(L, traits_table_idx);
+    lua_rawseti(L, tidx, ref);
+
+    amf_buf_append_u29(buf, 3 | traits_members<<4);
+    amf_buf_append_u29(buf, 0<<1|1);
+
+    for (int m = 1; m <= traits_members; m++) {
+        lua_rawgeti(L, traits_table_idx, m);
+        amf3_encode_string(L, buf, -1, sidx);
+        lua_pop(L, 1);
+    }
+
+    return -1;
+}
+
 static void
-amf3_encode_table_as_dynamic_object(lua_State *L, amf_buf *buf, int idx, int sidx, int oidx, int tidx)
+amf3_encode_table_as_object(lua_State *L, amf_buf *buf, int idx, int sidx, int oidx, int tidx)
 {
     abs_idx(L, idx);
 
@@ -470,30 +532,29 @@ amf3_encode_table_as_dynamic_object(lua_State *L, amf_buf *buf, int idx, int sid
         return;
     }
 
-    /* flags */
-    uint32_t trait_flags = (3 | 0 /* externalizable */ | 8 /* dynamic */ | 0);
-
-    amf_buf_append_u29(buf, trait_flags);
-    amf_buf_append_u29(buf, 1); /* empty class name */
-
+    lua_newtable(L); /* traits table */
+    int members = 1;
     for(lua_pushnil(L); lua_next(L, idx); lua_pop(L, 1)) {
-        switch(lua_type(L, -2)) {
-        case LUA_TNUMBER:
-            lua_pushvalue(L, -2);
-            lua_tostring(L, -1);
-            break;
-        case LUA_TSTRING:
-            lua_pushvalue(L, -2);
-            break;
+        switch (lua_type(L, -2)) {
+            case LUA_TNUMBER:
+                lua_pushvalue(L, -2);
+                lua_tostring(L, -1);
+                break;
+            case LUA_TSTRING:
+                lua_pushvalue(L, -2);
+                break;
+            default:
+                continue;
         }
-
-        amf3_encode_string(L, buf, -1, sidx);
-        lua_pop(L, 1);
-
-        amf3_encode(L, buf, -1, sidx, oidx, tidx);
+        lua_rawseti(L, -4, members++);
     }
 
-    amf_buf_append_u29(buf, 1); // empty property name
+    amf3_encode_traits(L, buf, lua_gettop(L), sidx, tidx);
+    lua_pop(L, 1); /* drop the traits table */
+
+    for(lua_pushnil(L); lua_next(L, idx); lua_pop(L, 1)) {
+        amf3_encode(L, buf, -1, sidx, oidx, tidx);
+    }
 }
 
 static void
@@ -517,6 +578,9 @@ amf3_encode_table_as_array(lua_State *L, amf_buf *buf, int idx, int sidx, int oi
     }
 
 }
+
+
+
 
 void
 amf3_encode(lua_State *L, amf_buf *buf, int idx, int sidx, int oidx, int tidx)
@@ -568,11 +632,11 @@ amf3_encode(lua_State *L, amf_buf *buf, int idx, int sidx, int oidx, int tidx)
         if (array_len == 0) {
             amf_buf_append_char(buf, AMF3_NULL);
 
-        } else if(array_len > 0) {
+        } else if (array_len > 0) {
             amf3_encode_table_as_array(L, buf, idx, sidx, oidx, tidx, array_len);
 
         } else {
-            amf3_encode_table_as_dynamic_object(L, buf, idx, sidx, oidx, tidx);
+            amf3_encode_table_as_object(L, buf, idx, sidx, oidx, tidx);
 
         }
 
@@ -743,7 +807,6 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
         }
 
         case AMF3_OBJECT: {
-            //printf("->>>>>>>>>>>>>>> object\n");
             uint32_t ref;
             amf_cursor_consume(c, 1);
             amf3_decode_u29(c, &ref);

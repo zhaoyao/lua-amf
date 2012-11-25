@@ -5,33 +5,18 @@
 #include <string.h>
 #include <stdio.h>
 
-static void *
-_default_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
-{
-    (void)ud;
-    (void)osize;
-
-    return realloc(ptr, nsize);
-}
-
 amf_buf *
-amf_buf_init(amf_buf *b, void *(*alloc)(void *ud, void *ptr, size_t osize, size_t nsize))
+amf_buf_init(amf_buf *b)
 {
-    if (alloc == NULL) {
-        alloc = _default_alloc;
-    }
 
     if (b == NULL) {
-        b = alloc(NULL, NULL, 0, sizeof(amf_buf));
+        b = malloc(sizeof(amf_buf));
         if (b == NULL) return NULL;
     }
 
     b->b = NULL;
     b->len = 0;
     b->free = 0;
-
-
-    b->alloc = alloc;
 
     return b;
 }
@@ -42,7 +27,7 @@ amf_buf_append(amf_buf *buf, const char *b, size_t len)
     if (buf->free < len) {
         size_t nlen = buf->len + len;
         //buf->b = realloc(buf->b, nlen * 2);
-        buf->b = buf->alloc(NULL, buf->b, buf->len, nlen * 2);
+        buf->b = realloc(buf->b, nlen * 2);
         buf->free = nlen;
     }
 
