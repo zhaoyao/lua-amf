@@ -430,15 +430,6 @@ amf3_encode_ref(lua_State *L, amf_buf *buf, int idx, int ridx)
     return ref;
 }
 
-/*
- */
-//static int
-//amf3_encode_traits_as_ref(lua_State *L, amf_buf *b, int tidx)
-//{
-    ///* 栈顶是traits table */
-    //return 1;
-//}
-
 static void
 amf3_encode_string(lua_State *L, amf_buf *buf, int idx, int sidx)
 {
