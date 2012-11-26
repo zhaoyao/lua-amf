@@ -705,26 +705,22 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
     amf_cursor_need(c, 1);
 
     int top = lua_gettop(L);
-    ////printf("decode: %d\n", c->p[0]);
 
     switch (c->p[0]) {
         case AMF3_UNDEFINED:
         case AMF3_NULL:
             lua_pushnil(L);
             amf_cursor_consume(c, 1);
-            //printf("decode nil\n");
             break;
 
         case AMF3_TRUE:
             lua_pushboolean(L, 1);
             amf_cursor_consume(c, 1);
-            //printf("decode true\n");
             break;
 
         case AMF3_FALSE:
             lua_pushboolean(L, 0);
             amf_cursor_consume(c, 1);
-            //printf("decode false\n");
             break;
 
         case AMF3_INTEGER: {
@@ -734,7 +730,6 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
             amf_cursor_checkerr(c);
             i = (i << 3) >> 3;
             lua_pushinteger(L, i);
-            //printf("decode int(%d)\n", i);
             break;
 
         }
@@ -762,7 +757,6 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
         case AMF3_STRING:
             amf_cursor_consume(c, 1);
             amf3_decode_str(L, c, sidx);
-            //printf("read string: '%s'\n", lua_tostring(L, -1));
             break;
 
         case AMF3_XMLDOC:
@@ -784,7 +778,6 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
                 lua_createtable(L, len, 0);
 
                 remember_object(L, -1, oidx);
-                //printf("decode array(%d)\n", len);
 
                 for (unsigned int i = 1; i <= len; i++) {
                     amf3_decode(L, c, sidx, oidx, tidx);
@@ -794,7 +787,6 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
 
             } else {
                 amf3_decode_ref(L, c, ref >> 1, oidx);
-                //printf("decode array ref: %d\n", ref >> 1);
             }
 
             break;
@@ -812,7 +804,6 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
             amf3_decode_u29(c, &ref);
             amf_cursor_checkerr(c);
 
-            //printf("object ref: %d\n", ref);
 
             if (!amf3_is_ref(ref)) {
                 uint32_t traits_ext = ref;
@@ -881,8 +872,6 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
 
                 }
 
-                //printf("decode object(%d)\n", members);
-
                 if (external) {
                     //TODO external support
                     assert(0);
@@ -895,7 +884,6 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
                     for (unsigned int i = 1; i <= members; i++) {
                         lua_rawgeti(L, -2, i);
 
-                        //printf("object property: %s\n", lua_tostring(L, -1));
                         amf3_decode(L, c, sidx, oidx, tidx);
                         amf_cursor_checkerr(c);
 
@@ -911,7 +899,6 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
                                 lua_pop(L, 1);
                                 break;
                             }
-                            //printf("dynamic property: %s\n", lua_tostring(L, -1));
                             amf3_decode(L, c, sidx, oidx, tidx);
                             amf_cursor_checkerr(c);
                             lua_rawset(L, -3);
@@ -922,7 +909,6 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
                 }
 
             } else {
-                //printf("***********decode object ref:%d\n", (ref>>1));
                 amf3_decode_ref(L, c, ref >> 1, oidx);
             }
 
@@ -932,7 +918,6 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
             luaL_error(L, "unsupported type: %d", c->p[0]);
     }
 
-    //printf("top: %d now: %d\n", top, lua_gettop(L));
     assert(lua_gettop(L) - top == 1);
 }
 
