@@ -10,7 +10,7 @@ local function assert_encoded(ver, o, bin)
     local fixture = object_fixture(bin)
     local buf = amf.encode(ver, o)
     if fixture ~= buf then
-        local tmpf = io.open('/tmp/' .. bin, 'w')
+        local tmpf = io.open("/tmp/" .. bin, 'w')
         tmpf:write(buf)
         tmpf:close()
     end
@@ -84,6 +84,7 @@ describe('amf3', function()
         assert_encoded(3, "String . String", 'amf3-string.bin')
     end)
 
+    -- lua_next(L, idx) may return diferent key order, the test may fail 
     it('should serialize table', function() 
         assert_encoded(3, {answer=42; foo='bar'}, 'amf3-hash.bin')
     end)
