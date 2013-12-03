@@ -118,8 +118,8 @@ amf0_encode_table_as_array(amf_buf *buf, lua_State *L, int idx, int ridx, int le
     amf_buf_append_char(buf, AMF0_STRICT_ARRAY);
     amf_buf_append_u32(buf, (uint32_t)len); // array count
 
-
-    for (int i = 1; i <= len; i++) {
+    int i;
+    for (i = 1; i <= len; i++) {
         lua_pushinteger(L, i);
         lua_gettable(L, idx);
 
@@ -236,7 +236,8 @@ amf0_encode(lua_State *L, amf_buf *buf, int avmplus, int idx, int ridx)
     int nbits = bits;                                       \
     amf_cursor_need(c, bits/8);                             \
     len = c->p[0] << 8 | c->p[1];                           \
-    for(int i = 0; nbits >= 0; nbits -= 8, i++) {           \
+    int i;                                                  \
+    for(i = 0; nbits >= 0; nbits -= 8, i++) {               \
         len |= (uint##bits##_t)c->p[i] << (nbits - 8);      \
     }                                                       \
     amf_cursor_consume(c, bits/8);                          \
@@ -351,7 +352,8 @@ amf0_decode(lua_State *L, amf_cursor *c, int ridx)
         lua_createtable(L, (int)count, 0);
         amf0_decode_remember_ref(L, -1, ridx);
 
-        for (int i = 1; i <= (int)count; i++) {
+        int i;
+        for (i = 1; i <= (int)count; i++) {
             amf0_decode(L, c, ridx);
             amf_cursor_checkerr(c);
             lua_rawseti(L, -2, i);
@@ -450,13 +452,15 @@ amf3_encode_string(lua_State *L, amf_buf *buf, int idx, int sidx)
 
 }
 
+#define class_name_not_empty(class_name) class_name != NULL && strcmp("", class_name) != 0
+
 /**
  * encode the traits info for a lua table.
  * first iterate over the current traits ref table(ridx) to see if we should encode the traits info as reference.
  * if not, encode the whole traits info
  */
 static int
-amf3_encode_traits(lua_State *L, amf_buf *buf, int traits_table_idx, int sidx, int tidx)
+amf3_encode_traits(lua_State *L, amf_buf *buf, int traits_table_idx, int sidx, int tidx, const char *class_name)
 {
     int ncached = lua_objlen(L, tidx);
 
@@ -475,7 +479,8 @@ amf3_encode_traits(lua_State *L, amf_buf *buf, int traits_table_idx, int sidx, i
             continue;
         }
 
-        for (int i = 1; i <= members; i++) {
+        int i;
+        for (i = 1; i <= members; i++) {
             lua_rawgeti(L, traits_table_idx, i);
             lua_rawgeti(L, -2, i);
 
@@ -500,10 +505,18 @@ amf3_encode_traits(lua_State *L, amf_buf *buf, int traits_table_idx, int sidx, i
     lua_pushvalue(L, traits_table_idx);
     lua_rawseti(L, tidx, ref);
 
-    amf_buf_append_u29(buf, 3 | traits_members<<4);
-    amf_buf_append_u29(buf, 0<<1|1);
+    amf_buf_append_u29(buf, 3 | (!(class_name_not_empty(class_name)) ? 8 : 0) | traits_members<<4);
+    if (class_name_not_empty(class_name)) {
+        printf("Traits Class Name: %s\n", class_name);
+        lua_pushstring(L, class_name);
+        amf3_encode_string(L, buf, -1, sidx);
+        lua_pop(L, 1);
+    } else {
+        amf_buf_append_u29(buf, 0<<1|1);
+    }
 
-    for (int m = 1; m <= traits_members; m++) {
+    int m;
+    for (m = 1; m <= traits_members; m++) {
         lua_rawgeti(L, traits_table_idx, m);
         amf3_encode_string(L, buf, -1, sidx);
         lua_pop(L, 1);
@@ -515,6 +528,7 @@ amf3_encode_traits(lua_State *L, amf_buf *buf, int traits_table_idx, int sidx, i
 static void
 amf3_encode_table_as_object(lua_State *L, amf_buf *buf, int idx, int sidx, int oidx, int tidx)
 {
+    const char *class_name = NULL;
     abs_idx(L, idx);
 
     amf_buf_append_char(buf, AMF3_OBJECT);
@@ -525,22 +539,28 @@ amf3_encode_table_as_object(lua_State *L, amf_buf *buf, int idx, int sidx, int o
 
     lua_newtable(L); /* traits table */
     int members = 1;
-    for(lua_pushnil(L); lua_next(L, idx); lua_pop(L, 1)) {
+    for(lua_pushnil(L); lua_next(L, idx); lua_pop(L, 1)) { // get encoded table all keys
         switch (lua_type(L, -2)) {
             case LUA_TNUMBER:
                 lua_pushvalue(L, -2);
                 lua_tostring(L, -1);
                 break;
             case LUA_TSTRING:
-                lua_pushvalue(L, -2);
+                if (strcmp(lua_tostring(L, -2), "__class") == 0) {
+                    class_name = lua_tostring(L, -1);
+                    printf("Class Name: %s\n", class_name);
+                    continue;
+                } else {
+                    lua_pushvalue(L, -2);
+                }
                 break;
             default:
                 continue;
         }
-        lua_rawseti(L, -4, members++);
+        lua_rawseti(L, -4, members++); // set all keys into traits table
     }
 
-    amf3_encode_traits(L, buf, lua_gettop(L), sidx, tidx);
+    amf3_encode_traits(L, buf, lua_gettop(L), sidx, tidx, class_name);
     lua_pop(L, 1); /* drop the traits table */
 
     for(lua_pushnil(L); lua_next(L, idx); lua_pop(L, 1)) {
@@ -561,7 +581,8 @@ amf3_encode_table_as_array(lua_State *L, amf_buf *buf, int idx, int sidx, int oi
     /*Send an empty string to imply no named keys*/
     amf_buf_append_u29(buf, (0 << 1) | 1);
 
-    for (int i = 1; i <= array_len; i++) {
+    int i;
+    for (i = 1; i <= array_len; i++) {
         lua_rawgeti(L, idx, i);
 
         amf3_encode(L, buf, -1, sidx, oidx, tidx);
@@ -569,9 +590,6 @@ amf3_encode_table_as_array(lua_State *L, amf_buf *buf, int idx, int sidx, int oi
     }
 
 }
-
-
-
 
 void
 amf3_encode(lua_State *L, amf_buf *buf, int idx, int sidx, int oidx, int tidx)
@@ -691,6 +709,164 @@ amf3_decode_str(lua_State *L, amf_cursor *c, int sidx) {
     amf_cursor_consume(c, 8+n);\
 } while(0)
 
+static void
+amf3_decode_date(lua_State *L, amf_cursor *c, int oidx) {
+    amf_cursor_consume(c, 1);
+    uint32_t ref;
+    amf3_decode_u29(c, &ref);
+    amf_cursor_checkerr(c);
+
+    if (!amf3_is_ref(ref)) {
+        amf3_decode_double(c, 0);
+    } else {
+        amf3_decode_ref(L, c, ref >> 1, oidx);
+    }    
+}
+
+static void
+amf3_decode_array(lua_State *L, amf_cursor *c, int sidx, int oidx, int tidx) {
+    uint32_t ref, len;
+    amf_cursor_consume(c, 1);
+    amf3_decode_u29(c, &ref);
+    amf_cursor_checkerr(c);
+
+    if (!amf3_is_ref(ref)) {
+        len = ref >> 1;
+        amf_cursor_skip(c, 1); // empty class name
+
+        lua_createtable(L, len, 0);
+
+        remember_object(L, -1, oidx);
+
+        unsigned int i;
+        for (i = 1; i <= len; i++) {
+            amf3_decode(L, c, sidx, oidx, tidx);
+            amf_cursor_checkerr(c);
+            lua_rawseti(L, -2, i);
+        }
+
+    } else {
+        amf3_decode_ref(L, c, ref >> 1, oidx);
+    }   
+}
+
+static void
+amf3_decode_object(lua_State *L, amf_cursor *c, int sidx, int oidx, int tidx) {
+    uint32_t ref;
+    amf_cursor_consume(c, 1);
+    amf3_decode_u29(c, &ref);
+    amf_cursor_checkerr(c);
+
+    if (!amf3_is_ref(ref)) {
+        uint32_t traits_ext = ref;
+        const char *class_name = NULL;
+        unsigned int members = 0, dynamic = 0, external = 0;
+
+        /*
+         * read the traits info
+         * after reading, the stack top is the traits table
+         */
+        if ((traits_ext & 3) != 1) {
+            members = traits_ext >> 4;
+            dynamic = (traits_ext & 8) == 8;
+            external = (traits_ext & 4) == 4;
+
+            amf3_decode_str(L, c, sidx);
+            amf_cursor_checkerr(c);
+            class_name = lua_tostring(L, -1);
+            lua_pop(L, 1);
+
+            if (external) {
+                //TODO
+                assert(0);
+
+            } else {
+                lua_createtable(L, members, 2 + (class_name_not_empty(class_name) ? 1 : 0));
+
+                unsigned int i;
+                for (i = 1; i <= members; i++) {
+                    amf3_decode_str(L, c, sidx);
+                    amf_cursor_checkerr(c);
+                    lua_rawseti(L, -2, i);
+                }
+
+                lua_pushliteral(L, "dynamic");
+                lua_pushinteger(L, dynamic);
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "external");
+                lua_pushinteger(L, external);
+                lua_rawset(L, -3);
+
+                if (class_name_not_empty(class_name)) {
+                    lua_pushliteral(L, "__class");
+                    lua_pushstring(L, class_name);
+                    lua_rawset(L, -3);
+                }
+
+                /* remember the traits table */
+                lua_pushvalue(L, -1);
+                luaL_ref(L, tidx);
+            }
+
+            remember_object(L, -1, tidx);
+
+        } else {
+            amf3_decode_ref(L, c, traits_ext >> 2, tidx);
+            amf_cursor_checkerr(c);
+
+            assert(lua_istable(L, -1));
+
+            members = lua_objlen(L, -1);
+
+            lua_pushliteral(L, "external");
+            lua_rawget(L, -2);
+            external = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pushliteral(L, "dynamic");
+            lua_rawget(L, -2);
+            dynamic = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_pushliteral(L, "__class");
+            lua_rawget(L, -2);
+            class_name = lua_tostring(L, -1);
+            lua_pop(L, 1);
+        }
+
+        if (external) {
+            //TODO external support
+            assert(0);
+
+        } else {
+            lua_createtable(L, 0, members + (class_name_not_empty(class_name) ? 1 : 0));
+            remember_object(L, -1, oidx);
+
+            if (class_name_not_empty(class_name)) {
+                lua_pushliteral(L, "__class");
+                lua_pushstring(L, class_name);
+                lua_rawset(L, -3);
+            }
+
+            unsigned int i;
+            for (i = 1; i <= members; i++) {
+                lua_rawgeti(L, -2, i);
+
+                amf3_decode(L, c, sidx, oidx, tidx);
+                amf_cursor_checkerr(c);
+
+                lua_rawset(L, -3);
+            }
+
+            lua_remove(L, -2); /* drop trait table */
+        }
+
+    } else {
+        amf3_decode_ref(L, c, ref >> 1, oidx);
+    }
+}
+
 void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
 {
     amf_cursor_need(c, 1);
@@ -726,17 +902,7 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
         }
 
         case AMF3_DATE: {
-            amf_cursor_consume(c, 1);
-            uint32_t ref;
-            amf3_decode_u29(c, &ref);
-            amf_cursor_checkerr(c);
-
-            if (!amf3_is_ref(ref)) {
-                amf3_decode_double(c, 0);
-            } else {
-                amf3_decode_ref(L, c, ref >> 1, oidx);
-            }
-
+            amf3_decode_date(L, c, oidx);
             break;
         }
 
@@ -757,29 +923,7 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
             break;
 
         case AMF3_ARRAY: {
-            uint32_t ref, len;
-            amf_cursor_consume(c, 1);
-            amf3_decode_u29(c, &ref);
-            amf_cursor_checkerr(c);
-
-            if (!amf3_is_ref(ref)) {
-                len = ref >> 1;
-                amf_cursor_skip(c, 1); // empty class name
-
-                lua_createtable(L, len, 0);
-
-                remember_object(L, -1, oidx);
-
-                for (unsigned int i = 1; i <= len; i++) {
-                    amf3_decode(L, c, sidx, oidx, tidx);
-                    amf_cursor_checkerr(c);
-                    lua_rawseti(L, -2, i);
-                }
-
-            } else {
-                amf3_decode_ref(L, c, ref >> 1, oidx);
-            }
-
+            amf3_decode_array(L, c, sidx, oidx, tidx);
             break;
         }
 
@@ -790,119 +934,7 @@ void amf3_decode(lua_State *L, amf_cursor *c,  int sidx, int oidx, int tidx)
         }
 
         case AMF3_OBJECT: {
-            uint32_t ref;
-            amf_cursor_consume(c, 1);
-            amf3_decode_u29(c, &ref);
-            amf_cursor_checkerr(c);
-
-
-            if (!amf3_is_ref(ref)) {
-                uint32_t traits_ext = ref;
-                const char *amf_type = NULL;
-                unsigned int members = 0, dynamic = 0, external = 0;
-
-                /*
-                 * read the traits info
-                 * after reading, the stack top is the traits table
-                 */
-                if ((traits_ext & 3) != 1) {
-                    members = traits_ext >> 4;
-                    dynamic = (traits_ext & 8) == 8;
-                    external = (traits_ext & 4) == 4;
-
-                    amf3_decode_str(L, c, sidx);
-                    amf_cursor_checkerr(c);
-                    amf_type = lua_tostring(L, -1);
-                    lua_pop(L, 1); // TODO typed object support, ignore typename for now
-
-                    if (external) {
-                        //TODO
-                        assert(0);
-
-                    } else {
-                        lua_createtable(L, members, 2);
-
-                        for (unsigned int i = 1; i <= members; i++) {
-                            amf3_decode_str(L, c, sidx);
-                            amf_cursor_checkerr(c);
-                            lua_rawseti(L, -2, i);
-                        }
-
-                        lua_pushliteral(L, "dynamic");
-                        lua_pushinteger(L, dynamic);
-                        lua_rawset(L, -3);
-
-                        lua_pushliteral(L, "external");
-                        lua_pushinteger(L, external);
-                        lua_rawset(L, -3);
-
-                        /* remember the traits table */
-                        lua_pushvalue(L, -1);
-                        luaL_ref(L, tidx);
-                    }
-
-                    remember_object(L, -1, tidx);
-
-                } else {
-                    amf3_decode_ref(L, c, traits_ext >> 2, tidx);
-                    amf_cursor_checkerr(c);
-
-                    assert(lua_istable(L, -1));
-
-                    members = lua_objlen(L, -1);
-
-                    lua_pushliteral(L, "external");
-                    lua_rawget(L, -2);
-                    external = lua_tointeger(L, -1);
-                    lua_pop(L, 1);
-
-                    lua_pushliteral(L, "dynamic");
-                    lua_rawget(L, -2);
-                    external = lua_tointeger(L, -1);
-                    lua_pop(L, 1);
-
-                }
-
-                if (external) {
-                    //TODO external support
-                    assert(0);
-
-                } else {
-
-                    lua_createtable(L, 0, members);
-                    remember_object(L, -1, oidx);
-
-                    for (unsigned int i = 1; i <= members; i++) {
-                        lua_rawgeti(L, -2, i);
-
-                        amf3_decode(L, c, sidx, oidx, tidx);
-                        amf_cursor_checkerr(c);
-
-                        lua_rawset(L, -3);
-                    }
-
-                    if (dynamic) {
-                        for (;;) {
-                            amf3_decode_str(L, c, sidx);
-                            amf_cursor_checkerr(c);
-
-                            if (lua_objlen(L, -1) == 0)  {
-                                lua_pop(L, 1);
-                                break;
-                            }
-                            amf3_decode(L, c, sidx, oidx, tidx);
-                            amf_cursor_checkerr(c);
-                            lua_rawset(L, -3);
-                        }
-                    }
-
-                    lua_remove(L, -2); /* drop trait table */
-                }
-
-            } else {
-                amf3_decode_ref(L, c, ref >> 1, oidx);
-            }
-
+            amf3_decode_object(L, c, sidx, oidx, tidx);
             break;
         }
         default:

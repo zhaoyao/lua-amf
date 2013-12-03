@@ -10,7 +10,7 @@ LUALIB ?= lua-5.1
 
 LIB = amf_codec.so
 
-SRC = src/amf_codec.c src/amf_buf.c src/amf_cursor.c src/amf_remoting.c src/lua-amf-codec.c
+SRC = src/amf_codec.c src/amf_buf.c src/amf_cursor.c src/amf_remoting.c src/lua_amf_codec.c
 
 OBJS = ${SRC:.c=.o}
 

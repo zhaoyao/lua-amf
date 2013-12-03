@@ -81,7 +81,8 @@ void amf_decode_msg(lua_State *L, amf_cursor *c)
     /* headers */
     amf_cursor_read_u16(c, &hc);
     if (hc > 0) lua_createtable(L, hc, 0);
-    for (unsigned int i = 0; i < hc; i++) {
+    unsigned int i;
+    for (i = 0; i < hc; i++) {
         decode_hdr(L, c);
         amf_cursor_checkerr(c);
         lua_rawseti(L, -2, i+1);
@@ -91,10 +92,11 @@ void amf_decode_msg(lua_State *L, amf_cursor *c)
     /* bodies */
     amf_cursor_read_u16(c, &bc);
     if (bc > 0) lua_createtable(L, bc, 0);
-    for (unsigned int i = 0; i < hc; i++) {
+    unsigned int j;
+    for (j = 0; j < hc; j++) {
         decode_body(L, c);
         amf_cursor_checkerr(c);
-        lua_rawseti(L, -2, i+1);
+        lua_rawseti(L, -2, j+1);
     }
     lua_rawseti(L, -2, 3);
 }
@@ -194,7 +196,8 @@ void amf_encode_msg(lua_State *L, amf_buf *buf)
             } else if (lua_istable(L, -1)) {
                 int hc = lua_objlen(L, -1);
                 amf_buf_append_u16(buf, hc);
-                for (int j = 1; j <= hc; j++) {
+                int j;
+                for (j = 1; j <= hc; j++) {
                     lua_rawgeti(L, -1, j);
                     encode_hdr(L, buf, ver);
                     lua_pop(L, 1);
@@ -211,7 +214,8 @@ void amf_encode_msg(lua_State *L, amf_buf *buf)
             } else if (lua_istable(L, -1)) {
                 int bc = lua_objlen(L, -1);
                 amf_buf_append_u16(buf, bc);
-                for (int j = 1; j <= bc; j++) {
+                int j;
+                for (j = 1; j <= bc; j++) {
                     lua_rawgeti(L, -1, j);
                     encode_body(L, buf, ver);
                     lua_pop(L, 1);

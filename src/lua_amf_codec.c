@@ -1,4 +1,5 @@
 
+#include "lua_amf_codec.h"
 #include "amf_codec.h"
 #include "amf_remoting.h"
 
