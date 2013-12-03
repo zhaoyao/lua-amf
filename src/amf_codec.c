@@ -334,7 +334,7 @@ amf0_decode(lua_State *L, amf_cursor *c, int ridx)
         amf0_decode_to_lua_table(L, c, ridx);
         break;
 
-    case AMF0_STRICT_ARRAY:
+    case AMF0_STRICT_ARRAY: {
         amf_cursor_need(c, 5);
         uint32_t count = c->p[1] << 24
                          | c->p[2] << 16
@@ -359,8 +359,9 @@ amf0_decode(lua_State *L, amf_cursor *c, int ridx)
             lua_rawseti(L, -2, i);
         }
         break;
+    }
 
-    case AMF0_TYPED_OBJECT:
+    case AMF0_TYPED_OBJECT: {
         amf_cursor_consume(c, 1);
 
         amf0_decode_string(L, c, 16);
@@ -376,6 +377,7 @@ amf0_decode(lua_State *L, amf_cursor *c, int ridx)
         lua_remove(L, -2);
 
         break;
+    }
 
     case AMF0_REFERENCE:
         amf_cursor_need(c, 3);
